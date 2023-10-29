@@ -21,4 +21,4 @@ STARTcraft viene con un StarterBot escrito en C++ utilizando BWAPI 4.4.0. Este r
 4. Abre `visualstudio/StartCraft.sln` en Visual Studio 2022 para modificar / recompilar el código.
 
 # Proyecto Bot de StarcraftBW Terran
-![logo](images/logo.png)
+![logo](images/logoT.png)
