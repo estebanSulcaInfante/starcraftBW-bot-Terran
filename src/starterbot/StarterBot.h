@@ -2,9 +2,31 @@
 
 #include "MapTools.h"
 #include <vector>
-
+#include <queue>
 #include <BWAPI.h>
 
+enum ActionType {
+
+};
+
+class Action
+{
+	int supplyTrigger;
+	int mineralCost;
+	int gasCost;
+};
+
+/// <summary>
+/// Esta clase maneja la Build Order usando una cola de acciones
+/// </summary>
+class BuildOrder
+{
+	std::queue<Action> actions;
+public:
+	void addAction(Action action);
+	
+
+};
 
 class StarterBot
 {

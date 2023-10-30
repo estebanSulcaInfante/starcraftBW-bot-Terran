@@ -97,7 +97,7 @@ void StarterBot::buildAdditionalSupply()
 // Draw some relevent information to the screen to help us debug the bot
 void StarterBot::drawDebugInformation()
 {
-    drawPositionsOfAllUnits();
+    //drawPositionsOfAllUnits();
     Tools::DrawUnitCommands();
     Tools::DrawUnitBoundingBoxes();
 }
