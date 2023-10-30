@@ -97,8 +97,31 @@ void StarterBot::buildAdditionalSupply()
 // Draw some relevent information to the screen to help us debug the bot
 void StarterBot::drawDebugInformation()
 {
+    drawPositionsOfAllUnits();
     Tools::DrawUnitCommands();
     Tools::DrawUnitBoundingBoxes();
+}
+
+
+// Dibuja las Position y Tile Position de todas las unidades
+void StarterBot::drawPositionsOfAllUnits()
+{
+    BWAPI::Unitset units = BWAPI::Broodwar->getAllUnits();
+    for (auto unit : units)
+    {
+        // Obtener todas las posiciones
+        BWAPI::Position position = unit->getPosition();
+        BWAPI::TilePosition tilePosition = unit->getTilePosition();
+        
+        // Parse
+        std::string info = "(" + std::to_string(position.x) + "," + std::to_string(position.y) + ") " +
+            "Tile: (" + std::to_string(tilePosition.x) + "," + std::to_string(tilePosition.y) + ")";
+
+        // Draw
+        BWAPI::Broodwar->drawTextMap(position, info.c_str());
+        
+    }
+
 }
 
 

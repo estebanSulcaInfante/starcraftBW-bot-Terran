@@ -15,8 +15,9 @@ class StarterBot
 	void sendIdleWorkersToMinerals(); // Dave
     void trainAdditionalWorkers(); // Dave
     void buildAdditionalSupply(); // Dave
-    void drawDebugInformation();// modify
-
+    
+	void drawDebugInformation();// modify
+	void drawPositionsOfAllUnits(); // 
 public:
 
     StarterBot();
