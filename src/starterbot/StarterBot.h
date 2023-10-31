@@ -4,26 +4,62 @@
 #include <vector>
 #include <queue>
 #include <BWAPI.h>
-
-enum ActionType {
-
-};
+#include <memory>
 
 class Action
 {
+protected:
+	BWAPI::UnitType type;
 	int supplyTrigger;
 	int mineralCost;
 	int gasCost;
+public:
+	Action(BWAPI::UnitType type, int supplyTrigger);
+	virtual void execute() = 0;
+	int getSupplyTrigger();
+	int getMineralCost();
+	int getGasCost();
 };
+
+
+class BuildAction : public Action
+{
+	BWAPI::TilePosition buildPosition;
+public:
+	
+	
+	BuildAction(BWAPI::UnitType type, int supplyTrigger, BWAPI::TilePosition buildPosition);
+	
+	
+	virtual void execute() override;
+};
+
+
+class TrainAction : public Action
+{
+public:
+
+	TrainAction(BWAPI::UnitType type, int supplyTrigger);
+	
+	
+	virtual void execute() override;
+};
+
 
 /// <summary>
 /// Esta clase maneja la Build Order usando una cola de acciones
 /// </summary>
 class BuildOrder
 {
-	std::queue<Action> actions;
+	std::queue<std::unique_ptr<Action>> actions;
+
 public:
-	void addAction(Action action);
+	void addBuildAction(BWAPI::UnitType unitType, BWAPI::TilePosition buildPosition, int supplyTrigger = -1);
+	void addTrainAction(BWAPI::UnitType unitType, int supplyTrigger = -1);
+	
+
+	void executeNextAction();
+
 	
 
 };

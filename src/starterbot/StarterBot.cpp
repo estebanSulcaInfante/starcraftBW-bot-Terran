@@ -203,3 +203,84 @@ void StarterBot::onUnitRenegade(BWAPI::Unit unit)
 
 
 // ******************************************************************
+
+
+Action::Action(BWAPI::UnitType type, int supplyTrigger)
+    : type(type), supplyTrigger(supplyTrigger),
+    mineralCost(type.mineralPrice()), 
+    gasCost(type.gasPrice()) { }
+
+int Action::getSupplyTrigger() { return supplyTrigger; }
+
+int Action::getMineralCost() { return mineralCost; }
+
+int Action::getGasCost() { return gasCost; }
+
+
+// ******************************************************************
+
+BuildAction::BuildAction(BWAPI::UnitType type, int supplyTrigger, BWAPI::TilePosition buildPosition)
+    : Action(type, supplyTrigger), buildPosition(buildPosition) { }
+
+
+void BuildAction::execute() 
+{
+
+
+}
+
+// ******************************************************************
+
+
+TrainAction::TrainAction(BWAPI::UnitType type, int supplyTrigger)
+    : Action(type, supplyTrigger) { }
+
+
+void TrainAction::execute()
+{
+
+
+}
+
+
+// ******************************************************************
+
+
+void BuildOrder::addBuildAction(BWAPI::UnitType unitType, BWAPI::TilePosition buildPosition, int supplyTrigger = -1)
+{
+    // si no le pasas un SupplyTrigger, se pondra por defecto la cantidad de Supplies que se necesitan para
+    // ese tipo de unidad.
+    if (supplyTrigger == -1) {
+        supplyTrigger = BWAPI::Broodwar->self()->supplyUsed() / 2;
+    }
+    
+    actions.push(std::make_unique<BuildAction>(unitType, supplyTrigger, buildPosition));
+}
+
+void BuildOrder::addTrainAction(BWAPI::UnitType unitType, int supplyTrigger = -1)
+{
+    // Si no le pasas un SupplyTrigger, se pondra por defecto la cantidad de Supplies en ese momento
+    if (supplyTrigger == -1) {
+        supplyTrigger = BWAPI::Broodwar->self()->supplyUsed() / 2;
+    }
+ 
+    actions.push(std::make_unique<TrainAction>(unitType, supplyTrigger));
+}
+
+
+void BuildOrder::executeNextAction()
+{
+    // Controlar que la cola no este vacia, para evitar comportamientos indefinidos
+    if (actions.empty()) { return; }
+    
+    auto& nextAction = actions.front();
+    int currentSupply = BWAPI::Broodwar->self()->supplyUsed() / 2;  // Dividido por 2 porque BWAPI devuelve el doble del valor real
+    // Verificar recursos y ejecutar acción. 
+    if (currentSupply >= nextAction->getSupplyTrigger() &&
+        BWAPI::Broodwar->self()->minerals() >= nextAction->getMineralCost() &&
+        BWAPI::Broodwar->self()->gas() >= nextAction->getGasCost()) {
+
+        nextAction->execute();
+        actions.pop();
+    }
+}
