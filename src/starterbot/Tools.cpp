@@ -17,6 +17,26 @@ BWAPI::Unit Tools::GetClosestUnitTo(BWAPI::Position p, const BWAPI::Unitset& uni
     return closestUnit;
 }
 
+BWAPI::Unit Tools::getClosestMineralField(BWAPI::Position pos) {
+    BWAPI::Unit closestMineralField = nullptr;
+    double closestDistance = std::numeric_limits<double>::infinity();
+
+    // Obtener todos los campos de minerales
+    for (auto& mineralField : BWAPI::Broodwar->getMinerals()) {
+        // Calcular la distancia entre la posición dada y el campo de mineral
+        double distance = pos.getDistance(mineralField->getPosition());
+
+        // Actualizar el campo de mineral más cercano si es necesario
+        if (distance < closestDistance) {
+            closestMineralField = mineralField;
+            closestDistance = distance;
+        }
+    }
+
+    // Devolver el campo de mineral más cercano
+    return closestMineralField;
+}
+
 BWAPI::Unit Tools::GetClosestUnitTo(BWAPI::Unit unit, const BWAPI::Unitset& units)
 {
     if (!unit) { return nullptr; }

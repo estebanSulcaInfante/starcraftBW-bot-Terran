@@ -7,7 +7,7 @@ namespace Tools
 {
     const int SCREEN_WIDTH = 640;
     const int SCREEN_HEIGHT = 480;
-
+    BWAPI::Unit getClosestMineralField(BWAPI::Position pos);
     BWAPI::Unit GetClosestUnitTo(BWAPI::Position p, const BWAPI::Unitset& units);
     BWAPI::Unit GetClosestUnitTo(BWAPI::Unit unit, const BWAPI::Unitset& units);
 

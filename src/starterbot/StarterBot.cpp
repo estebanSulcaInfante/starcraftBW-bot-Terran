@@ -17,9 +17,17 @@ void StarterBot::onStart()
 
     // Call MapTools OnStart
     m_mapTools.onStart();
-    
-    // Llama a onStart del WorkerManager
-    workerManager.onStart();
+ 
+    // Sincroniza el ResourceManager con la informacion inicial de la partida
+    ResourceManager* resourceManager = ResourceManager::getInstance();
+    resourceManager->synchronizeWithGame();
+
+    // Obtén la instancia de WorkerManager y llama a onStart
+    WorkerManager* workerManager = WorkerManager::getInstance();
+    workerManager->onStart();
+
+    // Llama onStart de BuildOrder
+    buildOrder.onStart();
 
 }
 
@@ -36,8 +44,13 @@ void StarterBot::onFrame()
     // Draw some relevent information to the screen to help us debug the bot
     drawDebugInformation();
     
+    
     // Llama al onFrame del WorkerManager
-    workerManager.onFrame();
+    WorkerManager* workerManager = WorkerManager::getInstance();
+    workerManager->onFrame();
+    
+    // Llama a onFrame de BuildOrder
+    buildOrder.onFrame();
 }
 
 
@@ -104,8 +117,23 @@ void StarterBot::buildAdditionalSupply()
 void StarterBot::drawDebugInformation()
 {
     //drawPositionsOfAllUnits();
+    drawResourceManagerInfo();
     Tools::DrawUnitCommands();
     Tools::DrawUnitBoundingBoxes();
+}
+
+// Dibuja la informacion del ResourceManager
+void StarterBot::drawResourceManagerInfo()
+{
+    BWAPI::Position pos = BWAPI::Position(2, 2);
+    // Parse
+    ResourceManager* resourceManager = ResourceManager::getInstance();
+    std::string info = "mineral: " + std::to_string(resourceManager->getMinerals()) + "\n"
+        "gas: " + std::to_string(resourceManager->getGas());
+
+    // Draw
+
+    BWAPI::Broodwar->drawTextScreen(pos, info.c_str());
 }
 
 
@@ -125,7 +153,7 @@ void StarterBot::drawPositionsOfAllUnits()
 
         // Draw
         BWAPI::Broodwar->drawTextMap(position, info.c_str());
-        
+                
     }
 
 }
@@ -174,7 +202,8 @@ void StarterBot::onSendText(std::string text)
 void StarterBot::onUnitCreate(BWAPI::Unit unit)
 { 
 	// Llama al metodo onUnitCreate del WorkerManager
-    workerManager.onUnitCreate();
+    WorkerManager* workerManager = WorkerManager::getInstance();
+    workerManager->onUnitCreate(unit);
 }
 
 
@@ -207,27 +236,234 @@ void StarterBot::onUnitRenegade(BWAPI::Unit unit)
 { 
 	
 }
+// ************************ResourceManager**********************************
+ResourceManager* ResourceManager::instance = nullptr;
+
+ResourceManager* ResourceManager::getInstance() {
+    if (!instance) {
+        instance = new ResourceManager();
+    }
+    return instance;
+}
+
+
+void ResourceManager::addMinerals(int amount) { minerals += amount; }
+
+int ResourceManager::getMinerals() const { return minerals; }
+
+void ResourceManager::addGas(int amount) { gas += amount; }
+
+int ResourceManager::getGas() const { return gas; }
+
+
+void ResourceManager::spendMinerals(int amount) {
+    minerals -= amount;
+    // Comprobación para asegurar que los minerales no se vuelvan negativos.
+    if (minerals < 0) minerals = 0;
+}
+
+void ResourceManager::spendGas(int amount) {
+    gas -= amount;
+    // Comprobación para asegurar que el gas no se vuelva negativo.
+    if (gas < 0) gas = 0;
+}
+
+void ResourceManager::synchronizeWithGame() {
+    minerals = BWAPI::Broodwar->self()->minerals();
+    gas = BWAPI::Broodwar->self()->gas();
+}
+
+ResourceManager::~ResourceManager() {
+    delete instance;
+}
+
+
+
+
+
 
 
 // ************************WorkerManager**********************************
+// Inicializa la instancia del Singleton
+WorkerManager* WorkerManager::instance = nullptr;
 
-
-void WorkerManager::onStart() {
-    // Aquí puedes realizar cualquier inicialización necesaria cuando el juego comienza
+WorkerManager* WorkerManager::getInstance()
+{
+    if (instance == nullptr) {
+        instance = new WorkerManager();
+    }
+    return instance;
 }
 
-void WorkerManager::onFrame() {
-    // Este método se llama en cada cuadro del juego, aquí es donde puedes poner la lógica para gestionar tus trabajadores
-    // Por ejemplo, podrías revisar si hay trabajadores inactivos y asignarlos a recursos
+WorkerManager::WorkerManager() {}
+
+void WorkerManager::onStart() {
+    // Asegurarse de que las listas y mapas están vacíos.
+    workers.clear();
+    workerAssignments.clear();
+    workerBuildTargets.clear();
+
+    // Identificar y almacenar los trabajadores iniciales.
+    for (auto& unit : BWAPI::Broodwar->self()->getUnits()) {
+        if (unit->getType().isWorker()) {
+            workers.push_back(unit);
+            // Por defecto, asumiremos que todos los trabajadores deberían estar recolectando minerales.
+            assignWorkerToMinerals(unit);
+        }
+    }
+    
+    // Otras configuraciones iniciales, si son necesarias.
+}
+
+void WorkerManager::assignWorkerToGas(BWAPI:: Unit worker)
+{
+
+}
+
+void WorkerManager::assignWorkerToMinerals(BWAPI::Unit worker) {
+    // Encontrar el parche de mineral más cercano
+    BWAPI::Unit mineralPatch = Tools::getClosestMineralField(worker->getPosition());
+
+    if (mineralPatch) {
+        // Asignar el trabajador al parche de mineral
+        workerAssignments[worker] = mineralPatch;
+
+        // Ordenar al trabajador que recolecte minerales
+        worker->gather(mineralPatch);
+    }
+}
+
+void WorkerManager::balanceWorkerAllocation()
+{
+
+}
+
+void WorkerManager::sendIdleWorkersToWork()
+{
+    // Iterar sobre todos los trabajadores para asegurarse de que están haciendo algo útil.
     for (auto& worker : workers) {
         if (worker->isIdle()) {
+            // Si el trabajador está ocioso, asignarlo a recolectar minerales.
             assignWorkerToMinerals(worker);
+        }
+        else {
+            // Aqui podría agregar lógica adicional para manejar otros casos, como trabajadores que están construyendo, recolectando gas, etc.
         }
     }
 }
 
-void WorkerManager::onUnitCreate() {
-    // Aquí deberías añadir lógica para manejar cuando se crean nuevas unidades, por ejemplo, añadir trabajadores a tu lista
+void WorkerManager::manageConstructionWorkers() {
+    for (auto& [worker, buildTarget] : workerBuildTargets) {
+        if (worker->isConstructing()) {
+            // Si el trabajador está construyendo, asegurarte de que continúe construyendo.
+            // Aqui podria agregar lógica para manejar casos en los que la construcción se interrumpa, etc.
+        }
+        else {
+            // Si el trabajador no está construyendo, enviarlo al lugar de construcción.
+            worker->move(BWAPI::Position(buildTarget));
+        }
+    }
+}
+
+BWAPI::Unit WorkerManager::getLeastBusyWorker()
+{
+    return nullptr;
+}
+
+void WorkerManager::assignWorkerToBuild(BWAPI::Unit worker, BWAPI::UnitType buildingType, BWAPI::TilePosition buildPosition) {
+    // Verificar si el trabajador es válido y es un trabajador
+    if (!worker || !worker->getType().isWorker()) {
+        return;
+    }
+
+    // Asignar al trabajador la tarea de construcción
+    workerBuildTargets[worker] = buildPosition;
+
+    // Ordenar al trabajador que construya
+    worker->build(buildingType, buildPosition);
+}
+
+
+void WorkerManager::onBuildingCompletion(BWAPI::Unit building)
+{
+
+}
+
+void WorkerManager::protectWorkers()
+{
+
+}
+
+void WorkerManager::evacuateWorkers(BWAPI::Position dangerZone)
+{
+
+}
+
+
+void WorkerManager::optimizeWorkerEfficiency()
+{
+
+}
+
+void WorkerManager::repairDamagedUnit(BWAPI::Unit unit)
+{
+
+}
+
+void WorkerManager::sendWorkerToScout(BWAPI::Position targetPosition)
+{
+
+}
+
+std::vector<BWAPI::Unit> WorkerManager::getAvailableWorkers()
+{
+    return std::vector<BWAPI::Unit>();
+}
+
+void WorkerManager::generateWorkerReport()
+{
+
+}
+
+void WorkerManager::onFrame() {
+    // Mandar a los trabajadores que no hacen nada a los minerales
+    sendIdleWorkersToWork();
+
+    // Verificar si necesitas equilibrar la asignación de trabajadores entre minerales y gas.
+    balanceWorkerAllocation();
+
+    // Gestionar trabajadores en construcción.
+    manageConstructionWorkers();
+
+    // Otras tareas específicas en cada frame
+    protectWorkers();
+    optimizeWorkerEfficiency();
+
+    // Generar informes si es necesario (puede ser útil para depuración).
+    generateWorkerReport();
+}
+
+BWAPI::Unit WorkerManager::findBuilder() {
+    // Obtener todos los trabajadores
+    BWAPI::Unitset workers = BWAPI::Broodwar->self()->getUnits();
+    BWAPI::Unit builder = nullptr;
+
+    // Buscar un trabajador que esté minando minerales
+    for (auto& worker : workers) {
+        if (worker->getType().isWorker() && worker->isGatheringMinerals()) {
+            builder = worker;
+            break;
+        }
+    }
+
+    return builder;
+}
+
+void WorkerManager::onUnitCreate(BWAPI::Unit unit) {
+    // Verificar si la unidad es un trabajador y pertenece al jugador actual
+    if (unit->getType().isWorker() && unit->getPlayer() == BWAPI::Broodwar->self()) {
+        workers.push_back(unit);
+    }
 }
 
 
@@ -260,17 +496,22 @@ BuildAction::BuildAction::BuildAction(BWAPI::UnitType type, int supplyTrigger, B
 
 bool BuildAction::canExecute()
 {
+    // Instanciar el ResourceManager
+    ResourceManager* resourceManager = ResourceManager::getInstance();
+
     // Verificar recursos
-    if (BWAPI::Broodwar->self()->minerals() < mineralCost ||
-        BWAPI::Broodwar->self()->gas() < gasCost) {
+    if (resourceManager->getMinerals() < mineralCost ||
+        resourceManager->getGas() < gasCost ||
+        BWAPI::Broodwar->self()->supplyTotal() - BWAPI::Broodwar->self()->supplyUsed() < type.supplyRequired()) {
         return false;
     }
 
     // Verificar disponibilidad de trabajador
-    BWAPI::Unit builder = findBuilder();
-    if (!builder) {
-        return false;
-    }
+    //WorkerManager* workerManager = WorkerManager::getInstance();
+    //BWAPI::Unit builder = workerManager->findBuilder();
+    //if (!builder) {
+    //    return false;
+    //}
 
     // Verificar posición de construcción (y cualquier otra condición necesaria)
     // ...
@@ -281,6 +522,40 @@ bool BuildAction::canExecute()
 void BuildAction::execute() 
 {
 
+    // Obtener un gestor de trabajadores
+    WorkerManager* workerManager = WorkerManager::getInstance();
+
+    // Encontrar un trabajador para construir
+    BWAPI::Unit builder = workerManager->findBuilder();
+    if (!builder) {
+        BWAPI::Broodwar->printf("Error: No se encontró un trabajador para construir");
+        return;
+    }
+
+    // Verificar si el lugar de construcción es válido
+    BWAPI::TilePosition buildTile = buildPosition;
+    if (!BWAPI::Broodwar->canBuildHere(buildTile, type, builder)) {
+        BWAPI::Broodwar->printf("Error: No se puede construir aquí");
+        return;
+    }
+
+    // Mover al trabajador a la posición de construcción y comenzar a construir
+    bool constructionStarted = builder->build(type, buildTile);
+    if (!constructionStarted) {
+        BWAPI::Broodwar->printf("Error: La construcción no pudo comenzar");
+        return;
+    }
+
+
+    // Obtener el ResourceManager
+    ResourceManager* resourceManager = ResourceManager::getInstance();
+
+    // Descontar los recursos utilizados
+    resourceManager->spendMinerals(this->getMineralCost());
+    resourceManager->spendGas(this->getGasCost());
+
+    // Asignar el trabajador a la tarea de construcción
+    workerManager->assignWorkerToBuild(builder, type, buildTile);
 
 }
 
@@ -291,22 +566,27 @@ TrainAction::TrainAction(BWAPI::UnitType type, int supplyTrigger)
     : Action(type, supplyTrigger) { }
 
 
-bool TrainAction::canExecute()
+BWAPI::Unit TrainAction::findTrainingStructure() {
+    for (auto& unit : BWAPI::Broodwar->self()->getUnits()) {
+        if (unit->getType().isBuilding() && unit->isIdle() && unit->canTrain(type)) {
+            return unit;
+        }
+    }
+    return nullptr;
+}
+
+bool TrainAction::canExecute() // los can execute y execute funcionan porque se ejecutan juntos, pero si es ejecutaran en distintos frames fallarian
 {
     // Verificar recursos
     if (BWAPI::Broodwar->self()->minerals() < mineralCost ||
-        BWAPI::Broodwar->self()->gas() < gasCost) {
+        BWAPI::Broodwar->self()->gas() < gasCost ||
+        BWAPI::Broodwar->self()->supplyTotal() - BWAPI::Broodwar->self()->supplyUsed() < type.supplyRequired()) {
         return false;
     }
 
-    // Verificar estructura adecuada y disponible
+    // Verificar si existe alguna estructura adecuada y disponible
     BWAPI::Unit structure = findTrainingStructure();
     if (!structure) {
-        return false;
-    }
-
-    // Verificar suministro
-    if (BWAPI::Broodwar->self()->supplyTotal() - BWAPI::Broodwar->self()->supplyUsed() < type.supplyRequired()) {
         return false;
     }
 
@@ -314,14 +594,34 @@ bool TrainAction::canExecute()
     // ...
 
     return true;
+}
 
+void TrainAction::execute()
+{
+    if (!canExecute()) { return; }
+
+    // Encontrar una estructura de entrenamiento adecuada
+    BWAPI::Unit structure = findTrainingStructure();
+    if (!structure) {
+        return; // Si no encontramos una estructura, simplemente retornamos
+    }
+
+    // Iniciar la producción de la unidad
+    bool startedTraining = structure->train(type);
+
+    if (startedTraining) {
+        BWAPI::Broodwar->printf("Entrenando una unidad de tipo: %s", type.c_str());
+    }
+    else {
+        BWAPI::Broodwar->printf("Error al intentar entrenar una unidad de tipo: %s", type.c_str());
+    }
 }
 
 
 // ****************************BuildOrder**************************
 
 
-void BuildOrder::addBuildAction(BWAPI::UnitType unitType, BWAPI::TilePosition buildPosition, int supplyTrigger = -1)
+void BuildOrder::addBuildAction(BWAPI::UnitType unitType, BWAPI::TilePosition buildPosition, int supplyTrigger )
 {
     // si no le pasas un SupplyTrigger, se pondra por defecto la cantidad de Supplies que se necesitan para
     // ese tipo de unidad.
@@ -332,7 +632,7 @@ void BuildOrder::addBuildAction(BWAPI::UnitType unitType, BWAPI::TilePosition bu
     actions.push(std::make_unique<BuildAction>(unitType, supplyTrigger, buildPosition));
 }
 
-void BuildOrder::addTrainAction(BWAPI::UnitType unitType, int supplyTrigger = -1)
+void BuildOrder::addTrainAction(BWAPI::UnitType unitType, int supplyTrigger)
 {
     // Si no le pasas un SupplyTrigger, se pondra por defecto la cantidad de Supplies en ese momento
     if (supplyTrigger == -1) {
@@ -343,7 +643,7 @@ void BuildOrder::addTrainAction(BWAPI::UnitType unitType, int supplyTrigger = -1
 }
 
 
-void BuildOrder::executeNextAction()
+void BuildOrder::onFrame()
 {
     // Controlar que la cola no este vacia, para evitar comportamientos indefinidos
     if (actions.empty()) { return; }
@@ -355,4 +655,30 @@ void BuildOrder::executeNextAction()
         nextAction->execute();
         actions.pop();
     }
+}
+
+void BuildOrder::onStart()
+{
+    // Aqui arma tu build order:) ***************
+    BWAPI::UnitType workertype = BWAPI::Broodwar->self()->getRace().getWorker();
+    BWAPI::UnitType barrackType = BWAPI::UnitTypes::Terran_Barracks;
+    
+    // Get a location that we want to build the building next to
+    BWAPI::TilePosition desiredPos = BWAPI::Broodwar->self()->getStartLocation();
+
+    // Ask BWAPI for a building location near the desired position for the type
+    int maxBuildRange = 64;
+    BWAPI::TilePosition buildPos = BWAPI::Broodwar->getBuildLocation(barrackType, desiredPos, maxBuildRange);
+    BWAPI::TilePosition buildPos2 = BWAPI::Broodwar->getBuildLocation(barrackType, desiredPos, maxBuildRange);
+
+
+
+    // llenar la build order
+    addBuildAction(barrackType, buildPos);
+    addBuildAction(barrackType, buildPos2);
+
+
+
+
+    // Aqui arma tu build order:) ***************
 }

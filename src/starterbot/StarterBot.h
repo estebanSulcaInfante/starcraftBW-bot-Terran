@@ -6,20 +6,68 @@
 #include <BWAPI.h>
 #include <memory>
 
+class ResourceManager {
+private:
+	static ResourceManager* instance;
+
+	// Variables de instancia, por ejemplo:
+	int minerals;
+	int gas;
+
+	// Constructor privado
+	ResourceManager() : minerals(0), gas(0) {}
+
+	// Evitar la copia del objeto
+	ResourceManager(ResourceManager& other) = delete;
+	void operator=(const ResourceManager&) = delete;
+
+public:
+	// Método estático para acceder a la instancia
+	static ResourceManager* getInstance();
+
+	// Métodos para gestionar los recursos, por ejemplo:
+	void addMinerals(int amount);
+	int getMinerals() const;
+
+	void addGas(int amount);
+	int getGas() const;
+
+	void spendMinerals(int amount);
+
+	void spendGas(int amount);
+
+	// ... otros métodos según sea necesario ...
+
+	// Destructor
+	virtual ~ResourceManager();
+	
+	void synchronizeWithGame();
+};
+
+
+
 
 class WorkerManager {
 private:
-    std::vector<BWAPI::Unit> workers; // Lista de todos los trabajadores
-    std::map<BWAPI::UnitType, std::vector<BWAPI::Unit>> workersByTask; // Trabajadores clasificados por tarea
-    std::map<BWAPI::Unit, BWAPI::TilePosition> workerBuildTargets; // Destinos de construcción para los trabajadores
+	static WorkerManager* instance;
 
+    std::vector<BWAPI::Unit> workers; // Lista de todos los trabajadores
+	std::map<BWAPI::Unit, BWAPI::Unit> workerAssignments; // Relaciones de trabajadores con la unidad con la que estan trabajando (ej: mineraField)
+    std::map<BWAPI::Unit, BWAPI::TilePosition> workerBuildTargets; // Destinos de construcción para los trabajadores
+	void sendIdleWorkersToWork();
+	void manageConstructionWorkers();
 public:
+	// Elimina los métodos de copia
+	WorkerManager(WorkerManager& other) = delete;
+	void operator=(const WorkerManager&) = delete;
     WorkerManager();
+	// Método para acceder a la instancia del Singleton
+	static WorkerManager* getInstance();
 
     // Ejecucion en el juego
 	void onStart();
 	void onFrame();
-	void onUnitCreate();	
+	void onUnitCreate(BWAPI::Unit unit);	
 
 	// Asignación y gestión de recursos
     void assignWorkerToMinerals(BWAPI::Unit worker);
@@ -47,13 +95,15 @@ public:
     // Exploración y escaneo del mapa
     void sendWorkerToScout(BWAPI::Position targetPosition);
 
+	// Servicios que WorkerManager ofrece a otras clases
+	BWAPI::Unit findBuilder();
+	
     // Interfaz y reportes
     std::vector<BWAPI::Unit> getAvailableWorkers();
     void generateWorkerReport();
 
-    // Funciones adicionales según sea necesario
-    // ...
 };
+
 
 class Action
 {
@@ -93,6 +143,7 @@ public:
 	
 	virtual bool canExecute() override;
 	virtual void execute() override;
+	BWAPI::Unit findTrainingStructure();
 };
 
 
@@ -104,9 +155,9 @@ public:
 	void addBuildAction(BWAPI::UnitType unitType, BWAPI::TilePosition buildPosition, int supplyTrigger = -1);
 	void addTrainAction(BWAPI::UnitType unitType, int supplyTrigger = -1);
 	
-
-	void executeNextAction();
-
+	// execute next action on frame
+	void onFrame();
+	void onStart();
 	
 
 };
@@ -114,7 +165,7 @@ public:
 class StarterBot
 {
 	MapTools m_mapTools;
-	WorkerManager  workerManager;
+	BuildOrder buildOrder;
 
 	// helper functions to get you started with bot programming and learn the API
 	void sendIdleWorkersToMinerals(); // Dave
@@ -123,6 +174,7 @@ class StarterBot
     
 	void drawDebugInformation();// modify
 	void drawPositionsOfAllUnits(); // 
+	void drawResourceManagerInfo();
 public:
 
 	StarterBot();
