@@ -637,9 +637,6 @@ void BuildOrder::onStart()
         addTrainAction(BWAPI::UnitTypes::Terran_SCV, -1);  // El -1 significa que no hay un trigger de suministro específico
     }
 
-    // Construir un Supply Depot después del cuarto SCV
-    addBuildAction(BWAPI::UnitTypes::Terran_Supply_Depot, basePosition, 8 );  // Este se inicia cuando llegas a 8 de suministro
-
     // Construir refineria de vespeno
     BWAPI::TilePosition startPosition = BWAPI::Broodwar->self()->getStartLocation(); // Obtener la posición inicial
     BWAPI::Unitset vespeneGeysers = Tools::getUnitsOfTypes(BWAPI::UnitTypes::Resource_Vespene_Geyser);
@@ -650,13 +647,21 @@ void BuildOrder::onStart()
     }
 
 
+    // Construir un Supply Depot después del cuarto SCV
+    addBuildAction(BWAPI::UnitTypes::Terran_Supply_Depot, basePosition, 8 );  // Este se inicia cuando llegas a 8 de suministro
+
+
     // Construir SCV (2)
     for (int i = 0; i < 2; ++i) {
         addTrainAction(BWAPI::UnitTypes::Terran_SCV, -1);  // El -1 significa que no hay un trigger de suministro específico
     }
 
     // Construir un Barracks después del Supply Depot
-    basePosition.y += 4;
+    basePosition.y += 2;
+    addBuildAction(BWAPI::UnitTypes::Terran_Barracks, basePosition, 10);
+
+    // Construir un Barracks después del Supply Depot
+    basePosition.y += 2;
     addBuildAction(BWAPI::UnitTypes::Terran_Barracks, basePosition, 10);
 
     // Continuar construyendo SCVs
@@ -664,9 +669,19 @@ void BuildOrder::onStart()
         addTrainAction(BWAPI::UnitTypes::Terran_SCV, -1);
     }
 
+    basePosition.y += 2;
+    // Construir otro Supply Depot para aumentar el suministro
+    addBuildAction(BWAPI::UnitTypes::Terran_Supply_Depot,basePosition);
+ 
+    basePosition.y += 2;
     // Construir un Academy después de tener suficientes SCVs
     addBuildAction(BWAPI::UnitTypes::Terran_Academy,basePosition);
  
+    basePosition.y -= 15;
+    // Construir otro Supply Depot para aumentar el suministro
+    addBuildAction(BWAPI::UnitTypes::Terran_Supply_Depot,basePosition);
+ 
+    basePosition.y -= 2;
     // Construir otro Supply Depot para aumentar el suministro
     addBuildAction(BWAPI::UnitTypes::Terran_Supply_Depot,basePosition);
     
