@@ -18,6 +18,9 @@ void StarterBot::onStart()
     // Call MapTools OnStart
     m_mapTools.onStart();
     
+    // Llama a onStart del WorkerManager
+    workerManager.onStart();
+
 }
 
 
@@ -32,6 +35,9 @@ void StarterBot::onFrame()
 
     // Draw some relevent information to the screen to help us debug the bot
     drawDebugInformation();
+    
+    // Llama al onFrame del WorkerManager
+    workerManager.onFrame();
 }
 
 
@@ -167,7 +173,8 @@ void StarterBot::onSendText(std::string text)
 // so this will trigger when you issue the build command for most units
 void StarterBot::onUnitCreate(BWAPI::Unit unit)
 { 
-	
+	// Llama al metodo onUnitCreate del WorkerManager
+    workerManager.onUnitCreate();
 }
 
 
@@ -202,13 +209,37 @@ void StarterBot::onUnitRenegade(BWAPI::Unit unit)
 }
 
 
-// ******************************************************************
+// ************************WorkerManager**********************************
+
+
+void WorkerManager::onStart() {
+    // Aquí puedes realizar cualquier inicialización necesaria cuando el juego comienza
+}
+
+void WorkerManager::onFrame() {
+    // Este método se llama en cada cuadro del juego, aquí es donde puedes poner la lógica para gestionar tus trabajadores
+    // Por ejemplo, podrías revisar si hay trabajadores inactivos y asignarlos a recursos
+    for (auto& worker : workers) {
+        if (worker->isIdle()) {
+            assignWorkerToMinerals(worker);
+        }
+    }
+}
+
+void WorkerManager::onUnitCreate() {
+    // Aquí deberías añadir lógica para manejar cuando se crean nuevas unidades, por ejemplo, añadir trabajadores a tu lista
+}
+
+
+// ************************Action**********************************
+
 
 
 Action::Action(BWAPI::UnitType type, int supplyTrigger)
     : type(type), supplyTrigger(supplyTrigger),
     mineralCost(type.mineralPrice()), 
     gasCost(type.gasPrice()) { }
+
 
 int Action::getSupplyTrigger() { return supplyTrigger; }
 
@@ -217,11 +248,35 @@ int Action::getMineralCost() { return mineralCost; }
 int Action::getGasCost() { return gasCost; }
 
 
-// ******************************************************************
+// **************************BuildAction******************************
 
-BuildAction::BuildAction(BWAPI::UnitType type, int supplyTrigger, BWAPI::TilePosition buildPosition)
-    : Action(type, supplyTrigger), buildPosition(buildPosition) { }
+BuildAction::BuildAction::BuildAction(BWAPI::UnitType type, int supplyTrigger, BWAPI::TilePosition buildPosition)
+    : Action(type, supplyTrigger), buildPosition(buildPosition) {
+    
+    // Calcular el costo de minerales y gas a partir del tipo de unidad.
+    mineralCost = type.mineralPrice();
+    gasCost = type.gasPrice();
+}
 
+bool BuildAction::canExecute()
+{
+    // Verificar recursos
+    if (BWAPI::Broodwar->self()->minerals() < mineralCost ||
+        BWAPI::Broodwar->self()->gas() < gasCost) {
+        return false;
+    }
+
+    // Verificar disponibilidad de trabajador
+    BWAPI::Unit builder = findBuilder();
+    if (!builder) {
+        return false;
+    }
+
+    // Verificar posición de construcción (y cualquier otra condición necesaria)
+    // ...
+
+    return true;
+}
 
 void BuildAction::execute() 
 {
@@ -229,21 +284,41 @@ void BuildAction::execute()
 
 }
 
-// ******************************************************************
+// ***************************TrainAction***************************
 
 
 TrainAction::TrainAction(BWAPI::UnitType type, int supplyTrigger)
     : Action(type, supplyTrigger) { }
 
 
-void TrainAction::execute()
+bool TrainAction::canExecute()
 {
+    // Verificar recursos
+    if (BWAPI::Broodwar->self()->minerals() < mineralCost ||
+        BWAPI::Broodwar->self()->gas() < gasCost) {
+        return false;
+    }
 
+    // Verificar estructura adecuada y disponible
+    BWAPI::Unit structure = findTrainingStructure();
+    if (!structure) {
+        return false;
+    }
+
+    // Verificar suministro
+    if (BWAPI::Broodwar->self()->supplyTotal() - BWAPI::Broodwar->self()->supplyUsed() < type.supplyRequired()) {
+        return false;
+    }
+
+    // Cualquier otra condición necesaria
+    // ...
+
+    return true;
 
 }
 
 
-// ******************************************************************
+// ****************************BuildOrder**************************
 
 
 void BuildOrder::addBuildAction(BWAPI::UnitType unitType, BWAPI::TilePosition buildPosition, int supplyTrigger = -1)
@@ -276,10 +351,7 @@ void BuildOrder::executeNextAction()
     auto& nextAction = actions.front();
     int currentSupply = BWAPI::Broodwar->self()->supplyUsed() / 2;  // Dividido por 2 porque BWAPI devuelve el doble del valor real
     // Verificar recursos y ejecutar acción. 
-    if (currentSupply >= nextAction->getSupplyTrigger() &&
-        BWAPI::Broodwar->self()->minerals() >= nextAction->getMineralCost() &&
-        BWAPI::Broodwar->self()->gas() >= nextAction->getGasCost()) {
-
+    if (nextAction->canExecute()) {
         nextAction->execute();
         actions.pop();
     }
