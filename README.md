@@ -22,3 +22,6 @@ STARTcraft viene con un StarterBot escrito en C++ utilizando BWAPI 4.4.0. Este r
 
 # Proyecto Bot de StarcraftBW Terran
 ![logo](images/logoT.png)
+
+## Diagrama UML
+![Alt text](images/uml.png)
