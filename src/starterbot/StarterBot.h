@@ -8,42 +8,70 @@
 
 class ResourceManager {
 private:
-	static ResourceManager* instance;
+    static ResourceManager* instance;
 
-	// Variables de instancia, por ejemplo:
-	int minerals;
-	int gas;
+    int committedMinerals = 0;
+    int committedGas = 0;
 
-	// Constructor privado
-	ResourceManager() : minerals(0), gas(0) {}
+    // Constructor privado
+    ResourceManager() : committedMinerals(0), committedGas(0) {}
 
-	// Evitar la copia del objeto
-	ResourceManager(ResourceManager& other) = delete;
-	void operator=(const ResourceManager&) = delete;
+    // Evitar la copia del objeto
+    ResourceManager(ResourceManager& other) = delete;
+    void operator=(const ResourceManager&) = delete;
 
 public:
-	// Método estático para acceder a la instancia
-	static ResourceManager* getInstance();
+    // Método estático para acceder a la instancia
+    static ResourceManager* getInstance() {
+        if (!instance) {
+            instance = new ResourceManager();
+        }
+        return instance;
+    }
 
-	// Métodos para gestionar los recursos, por ejemplo:
-	void addMinerals(int amount);
-	int getMinerals() const;
+    // Métodos para comprometer y liberar recursos
+    void commitMinerals(int amount) {
+        committedMinerals += amount;
+    }
 
-	void addGas(int amount);
-	int getGas() const;
+    void releaseMinerals(int amount) {
+        committedMinerals -= amount;
+    }
 
-	void spendMinerals(int amount);
+    void commitGas(int amount) {
+        committedGas += amount;
+    }
 
-	void spendGas(int amount);
+    void releaseGas(int amount) {
+        committedGas -= amount;
+    }
 
-	// ... otros métodos según sea necesario ...
+    // Métodos para consultar recursos disponibles
+    int getAvailableMinerals() const {
+        return BWAPI::Broodwar->self()->minerals() - committedMinerals;
+    }
 
-	// Destructor
-	virtual ~ResourceManager();
-	
-	void synchronizeWithGame();
+    int getAvailableGas() const {
+        return BWAPI::Broodwar->self()->gas() - committedGas;
+    }
+
+    void onUnitComplete(BWAPI::Unit unit) {
+        if (!unit->getType().isBuilding()) { return; }
+        releaseMinerals(unit->getType().mineralPrice());
+        releaseGas(unit->getType().gasPrice());
+    }
+
+    // Destructor
+    virtual ~ResourceManager() {
+        // Si hay alguna limpieza que hacer cuando el juego termine
+        if (instance) {
+            delete instance;
+            instance = nullptr;
+        }
+    }
+
+
 };
-
 
 
 
@@ -166,6 +194,7 @@ class StarterBot
 {
 	MapTools m_mapTools;
 	BuildOrder buildOrder;
+    bool gameJustStarted;
 
 	// helper functions to get you started with bot programming and learn the API
 	void sendIdleWorkersToMinerals(); // Dave

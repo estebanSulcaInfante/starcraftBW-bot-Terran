@@ -8,6 +8,8 @@ StarterBot::StarterBot(){}
 // Called when the bot starts!
 void StarterBot::onStart()
 {
+    gameJustStarted = true;
+
     // Set our BWAPI options here    
 	BWAPI::Broodwar->setLocalSpeed(15);
     BWAPI::Broodwar->setFrameSkip(0);
@@ -18,10 +20,6 @@ void StarterBot::onStart()
     // Call MapTools OnStart
     m_mapTools.onStart();
  
-    // Sincroniza el ResourceManager con la informacion inicial de la partida
-    ResourceManager* resourceManager = ResourceManager::getInstance();
-    resourceManager->synchronizeWithGame();
-
     // Obtén la instancia de WorkerManager y llama a onStart
     WorkerManager* workerManager = WorkerManager::getInstance();
     workerManager->onStart();
@@ -29,6 +27,7 @@ void StarterBot::onStart()
     // Llama onStart de BuildOrder
     buildOrder.onStart();
 
+    
 }
 
 
@@ -51,6 +50,8 @@ void StarterBot::onFrame()
     
     // Llama a onFrame de BuildOrder
     buildOrder.onFrame();
+
+    gameJustStarted = false;
 }
 
 
@@ -116,7 +117,7 @@ void StarterBot::buildAdditionalSupply()
 // Draw some relevent information to the screen to help us debug the bot
 void StarterBot::drawDebugInformation()
 {
-    //drawPositionsOfAllUnits();
+    drawPositionsOfAllUnits();
     drawResourceManagerInfo();
     Tools::DrawUnitCommands();
     Tools::DrawUnitBoundingBoxes();
@@ -128,8 +129,8 @@ void StarterBot::drawResourceManagerInfo()
     BWAPI::Position pos = BWAPI::Position(2, 2);
     // Parse
     ResourceManager* resourceManager = ResourceManager::getInstance();
-    std::string info = "mineral: " + std::to_string(resourceManager->getMinerals()) + "\n"
-        "gas: " + std::to_string(resourceManager->getGas());
+    std::string info = "mineral: " + std::to_string(resourceManager->getAvailableMinerals()) + "\n"
+        "gas: " + std::to_string(resourceManager->getAvailableGas());
 
     // Draw
 
@@ -201,9 +202,17 @@ void StarterBot::onSendText(std::string text)
 // so this will trigger when you issue the build command for most units
 void StarterBot::onUnitCreate(BWAPI::Unit unit)
 { 
+    
 	// Llama al metodo onUnitCreate del WorkerManager
     WorkerManager* workerManager = WorkerManager::getInstance();
     workerManager->onUnitCreate(unit);
+    
+    // Evitar que se cuente los recursos de las unidades creadas al inicio de la partida
+    if (!gameJustStarted) 
+    {
+        ResourceManager::getInstance()->onUnitComplete(unit);
+    }
+    
 }
 
 
@@ -238,45 +247,6 @@ void StarterBot::onUnitRenegade(BWAPI::Unit unit)
 }
 // ************************ResourceManager**********************************
 ResourceManager* ResourceManager::instance = nullptr;
-
-ResourceManager* ResourceManager::getInstance() {
-    if (!instance) {
-        instance = new ResourceManager();
-    }
-    return instance;
-}
-
-
-void ResourceManager::addMinerals(int amount) { minerals += amount; }
-
-int ResourceManager::getMinerals() const { return minerals; }
-
-void ResourceManager::addGas(int amount) { gas += amount; }
-
-int ResourceManager::getGas() const { return gas; }
-
-
-void ResourceManager::spendMinerals(int amount) {
-    minerals -= amount;
-    // Comprobación para asegurar que los minerales no se vuelvan negativos.
-    if (minerals < 0) minerals = 0;
-}
-
-void ResourceManager::spendGas(int amount) {
-    gas -= amount;
-    // Comprobación para asegurar que el gas no se vuelva negativo.
-    if (gas < 0) gas = 0;
-}
-
-void ResourceManager::synchronizeWithGame() {
-    minerals = BWAPI::Broodwar->self()->minerals();
-    gas = BWAPI::Broodwar->self()->gas();
-}
-
-ResourceManager::~ResourceManager() {
-    delete instance;
-}
-
 
 
 
@@ -360,7 +330,7 @@ void WorkerManager::manageConstructionWorkers() {
         }
         else {
             // Si el trabajador no está construyendo, enviarlo al lugar de construcción.
-            worker->move(BWAPI::Position(buildTarget));
+            //worker->move(BWAPI::Position(buildTarget));
         }
     }
 }
@@ -500,8 +470,8 @@ bool BuildAction::canExecute()
     ResourceManager* resourceManager = ResourceManager::getInstance();
 
     // Verificar recursos
-    if (resourceManager->getMinerals() < mineralCost ||
-        resourceManager->getGas() < gasCost ||
+    if (resourceManager->getAvailableMinerals() < mineralCost ||
+        resourceManager->getAvailableGas() < gasCost ||
         BWAPI::Broodwar->self()->supplyTotal() - BWAPI::Broodwar->self()->supplyUsed() < type.supplyRequired()) {
         return false;
     }
@@ -551,8 +521,8 @@ void BuildAction::execute()
     ResourceManager* resourceManager = ResourceManager::getInstance();
 
     // Descontar los recursos utilizados
-    resourceManager->spendMinerals(this->getMineralCost());
-    resourceManager->spendGas(this->getGasCost());
+    resourceManager->commitMinerals(this->getMineralCost());
+    resourceManager->commitGas(this->getGasCost());
 
     // Asignar el trabajador a la tarea de construcción
     workerManager->assignWorkerToBuild(builder, type, buildTile);
@@ -669,16 +639,32 @@ void BuildOrder::onStart()
     // Ask BWAPI for a building location near the desired position for the type
     int maxBuildRange = 64;
     BWAPI::TilePosition buildPos = BWAPI::Broodwar->getBuildLocation(barrackType, desiredPos, maxBuildRange);
-    BWAPI::TilePosition buildPos2 = BWAPI::Broodwar->getBuildLocation(barrackType, desiredPos, maxBuildRange);
+    
 
 
 
     // llenar la build order
+    
+    // 1. Agregar barracon
     addBuildAction(barrackType, buildPos);
-    addBuildAction(barrackType, buildPos2);
 
+    // 2. Agrergar barracon
+    buildPos.x += 1;buildPos.y += 4;
+    addBuildAction(barrackType, buildPos);
+    
+    // 2. Agregar refineria de vespeno
+    BWAPI::TilePosition startPosition = BWAPI::Broodwar->self()->getStartLocation(); // Obtener la posición inicial
 
+    // Obtener todos los géiseres de vespeno en el juego
+    BWAPI::Unitset vespeneGeysers = Tools::getUnitsOfTypes(BWAPI::UnitTypes::Resource_Vespene_Geyser);
 
+    // Obtener el géiser más cercano a la posición inicial
+    BWAPI::Unit closestVespeneGeyser = Tools::GetClosestUnitTo(BWAPI::Position(startPosition), vespeneGeysers);
+
+    if (closestVespeneGeyser) {
+        BWAPI::TilePosition vespeneBuildPos = closestVespeneGeyser->getTilePosition();
+        addBuildAction(BWAPI::UnitTypes::Terran_Refinery, vespeneBuildPos);
+    }
 
     // Aqui arma tu build order:) ***************
 }
