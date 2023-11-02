@@ -629,42 +629,54 @@ void BuildOrder::onFrame()
 
 void BuildOrder::onStart()
 {
-    // Aqui arma tu build order:) ***************
-    BWAPI::UnitType workertype = BWAPI::Broodwar->self()->getRace().getWorker();
-    BWAPI::UnitType barrackType = BWAPI::UnitTypes::Terran_Barracks;
-    
-    // Get a location that we want to build the building next to
-    BWAPI::TilePosition desiredPos = BWAPI::Broodwar->self()->getStartLocation();
+    // Asumiendo que basePosition es la posición donde quieres construir tus estructuras
+    BWAPI::TilePosition basePosition = BWAPI::Broodwar->self()->getStartLocation(); // Establece tu posición inicial aquí
+    basePosition = BWAPI::Broodwar->getBuildLocation(BWAPI::UnitTypes::Terran_Barracks, basePosition);
+    // Construir SCV (4 veces para tener 4 SCVs adicionales)
+    for (int i = 0; i < 4; ++i) {
+        addTrainAction(BWAPI::UnitTypes::Terran_SCV, -1);  // El -1 significa que no hay un trigger de suministro específico
+    }
 
-    // Ask BWAPI for a building location near the desired position for the type
-    int maxBuildRange = 64;
-    BWAPI::TilePosition buildPos = BWAPI::Broodwar->getBuildLocation(barrackType, desiredPos, maxBuildRange);
-    
+    // Construir un Supply Depot después del cuarto SCV
+    addBuildAction(BWAPI::UnitTypes::Terran_Supply_Depot, basePosition, 8 );  // Este se inicia cuando llegas a 8 de suministro
 
-
-
-    // llenar la build order
-    
-    // 1. Agregar barracon
-    addBuildAction(barrackType, buildPos);
-
-    // 2. Agrergar barracon
-    buildPos.x += 1;buildPos.y += 4;
-    addBuildAction(barrackType, buildPos);
-    
-    // 2. Agregar refineria de vespeno
+    // Construir refineria de vespeno
     BWAPI::TilePosition startPosition = BWAPI::Broodwar->self()->getStartLocation(); // Obtener la posición inicial
-
-    // Obtener todos los géiseres de vespeno en el juego
     BWAPI::Unitset vespeneGeysers = Tools::getUnitsOfTypes(BWAPI::UnitTypes::Resource_Vespene_Geyser);
-
-    // Obtener el géiser más cercano a la posición inicial
     BWAPI::Unit closestVespeneGeyser = Tools::GetClosestUnitTo(BWAPI::Position(startPosition), vespeneGeysers);
-
     if (closestVespeneGeyser) {
         BWAPI::TilePosition vespeneBuildPos = closestVespeneGeyser->getTilePosition();
         addBuildAction(BWAPI::UnitTypes::Terran_Refinery, vespeneBuildPos);
     }
 
-    // Aqui arma tu build order:) ***************
+
+    // Construir SCV (2)
+    for (int i = 0; i < 2; ++i) {
+        addTrainAction(BWAPI::UnitTypes::Terran_SCV, -1);  // El -1 significa que no hay un trigger de suministro específico
+    }
+
+    // Construir un Barracks después del Supply Depot
+    basePosition.y += 4;
+    addBuildAction(BWAPI::UnitTypes::Terran_Barracks, basePosition, 10);
+
+    // Continuar construyendo SCVs
+    for (int i = 0; i < 5; ++i) {
+        addTrainAction(BWAPI::UnitTypes::Terran_SCV, -1);
+    }
+
+    // Construir un Academy después de tener suficientes SCVs
+    addBuildAction(BWAPI::UnitTypes::Terran_Academy,basePosition);
+ 
+    // Construir otro Supply Depot para aumentar el suministro
+    addBuildAction(BWAPI::UnitTypes::Terran_Supply_Depot,basePosition);
+    
+    // Entrenar 10 Marines
+    for (int i = 0; i < 10; ++i) {
+        addTrainAction(BWAPI::UnitTypes::Terran_Marine, -1);
+    }
+
+    // Entrenar 2 Medics
+    for (int i = 0; i < 2; ++i) {
+        addTrainAction(BWAPI::UnitTypes::Terran_Medic, -1);
+    }
 }
